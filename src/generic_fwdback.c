@@ -740,6 +740,8 @@ main(int argc, char **argv)
   float           fsc, bsc;
   float           nullsc;
   int             status;
+  float           bg_ll;  /* log P(seq | bg) */
+  int             i;
 
   /* Initialize log-sum calculator */
   p7_FLogsumInit();
@@ -771,8 +773,7 @@ main(int argc, char **argv)
   fwd = p7_gmx_Create(gm->M, sq->n);
   bck = p7_gmx_Create(gm->M, sq->n);
 
-  printf("%-30s   %-10s %-10s   %-10s %-10s\n", "# seq name",      "fwd (raw)",   "bck (raw) ",  "fwd (bits)",  "bck (bits)");
-  printf("%-30s   %10s %10s   %10s %10s\n",     "#--------------", "----------",  "----------",  "----------",  "----------");
+  printf("seq_name,fwd_raw,bg_ll,logprob,seq\n");
 
   while ( (status = esl_sqio_Read(sqfp, sq)) != eslEOF)
     {
@@ -791,17 +792,25 @@ main(int argc, char **argv)
       p7_GForward (sq->dsq, sq->n, gm, fwd, &fsc);
       p7_GBackward(sq->dsq, sq->n, gm, bck, &bsc);
 
-      p7_gmx_Dump(stdout, fwd, p7_DEFAULT);
+      /* disable dump of fwd matrix */
+      /* p7_gmx_Dump(stdout, fwd, p7_DEFAULT); */
 
       /* Those scores are partial log-odds likelihoods in nats.
        * Subtract off the rest of the null model, convert to bits.
        */
       p7_bg_NullOne(bg, sq->dsq, sq->n, &nullsc);
 
-      printf("%-30s   %10.4f %10.4f   %10.4f %10.4f\n", 
-	     sq->name, 
-	     fsc, bsc, 
-	     (fsc - nullsc) / eslCONST_LOG2, (bsc - nullsc) / eslCONST_LOG2);
+      /* printf("%-30s   %10.4f %10.4f   %10.4f %10.4f\n",
+       *     sq->name,
+       *     fsc, bsc,
+       *     (fsc - nullsc) / eslCONST_LOG2, (bsc - nullsc) / eslCONST_LOG2);
+       */
+
+      /* get the background LL */
+      for (bg_ll = 0., i = 1; i <= sq->n; i++)  bg_ll += log(bg->f[sq->dsq[i]]);
+      esl_sq_Textize(sq);
+      printf("%-30s,%10.7f,%10.7f,%10.7f,%s\n", sq->name, fsc, bg_ll, fsc + bg_ll, sq->seq);
+      esl_sq_Digitize(abc, sq);
 
       p7_gmx_Reuse(fwd);
       p7_gmx_Reuse(bck);
